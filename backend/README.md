@@ -127,4 +127,6 @@ backend/
 
 ## License
 
-MIT License - see [LICENSE](../LICENSE) file for details
+PolyForm Noncommercial License 1.0.0 - see [LICENSE](../LICENSE) file for details.
+
+This software is free for noncommercial use, including forking, studying, modifying, and contributing via pull requests. Commercial use requires a separate license from the copyright holder.
