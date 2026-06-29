@@ -20,7 +20,7 @@ class LiteLLMSpendLog(Base):
     We read from this table but do not write to it.
     """
 
-    __tablename__ = "litellm_spend_logs"
+    __tablename__ = "LiteLLM_SpendLogs"
 
     request_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     api_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
@@ -45,7 +45,7 @@ class LiteLLMVirtualKeys(Base):
     We use this for authentication and user identity resolution.
     """
 
-    __tablename__ = "litellm_verification_tokens"
+    __tablename__ = "LiteLLM_VerificationToken"
 
     token: Mapped[str] = mapped_column(String(255), primary_key=True)
     key_alias: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

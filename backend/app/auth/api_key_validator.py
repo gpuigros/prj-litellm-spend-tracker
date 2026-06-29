@@ -1,5 +1,6 @@
 """LiteLLM virtual API key validator."""
 
+import hashlib
 import json
 from typing import Optional
 
@@ -10,6 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.litellm import LiteLLMVirtualKeys
 
 logger = structlog.get_logger()
+
+
+def hash_token(token: str) -> str:
+    """Hash a token using SHA-256, matching LiteLLM's hash_token function."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 class APIKeyValidator:
@@ -31,8 +37,16 @@ class APIKeyValidator:
         if api_key.startswith("Bearer "):
             api_key = api_key[7:]
 
-        # Query the verification tokens table
-        query = select(LiteLLMVirtualKeys).where(LiteLLMVirtualKeys.token == api_key)
+        # LiteLLM stores keys as SHA-256 hashes in the token column.
+        # Keys starting with 'sk-' are hashed before lookup.
+        if api_key.startswith("sk-"):
+            hashed_key = hash_token(api_key)
+        else:
+            # Non-sk- tokens (e.g. master key, JWT) are used as-is
+            hashed_key = api_key
+
+        # Query the verification tokens table using the hashed key
+        query = select(LiteLLMVirtualKeys).where(LiteLLMVirtualKeys.token == hashed_key)
         result = await self.db.execute(query)
         key_record = result.scalar_one_or_none()
 
