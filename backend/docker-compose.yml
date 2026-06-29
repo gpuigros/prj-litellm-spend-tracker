@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # LLM Spend API
+  spend-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://litellm:litellm@postgres:5432/litellm
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+      - CORS_ORIGINS=["http://localhost:3000","vscode-webview://*"]
+      - DEFAULT_MONTHLY_BUDGET=25.00
+      - DEFAULT_CURRENCY=EUR
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app:ro
+    networks:
+      - spend-network
+
+  # PostgreSQL database (simulating LiteLLM database)
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=litellm
+      - POSTGRES_PASSWORD=litellm
+      - POSTGRES_DB=litellm
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U litellm" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spend-network
+
+volumes:
+  postgres_data:
+
+networks:
+  spend-network:
+    driver: bridge

@@ -1,0 +1,109 @@
+{
+    "name": "litellm-spend-tracker",
+    "displayName": "LiteLLM Spend Tracker",
+    "description": "Track and visualize LLM expenditure with LiteLLM in VS Code",
+    "version": "1.0.0",
+    "publisher": "your-github-username",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/your-github-username/litellm-spend-tracker"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "configuration": {
+            "title": "LLM Spend Tracker",
+            "properties": {
+                "llmSpend.apiBaseUrl": {
+                    "type": "string",
+                    "default": "http://localhost:8000",
+                    "description": "Base URL of the LLM Spend API"
+                },
+                "llmSpend.refreshInterval": {
+                    "type": "number",
+                    "default": 300,
+                    "description": "Auto-refresh interval in seconds (0 to disable)"
+                },
+                "llmSpend.defaultPeriod": {
+                    "type": "string",
+                    "enum": [
+                        "today",
+                        "week",
+                        "month"
+                    ],
+                    "default": "month",
+                    "description": "Default time period for spend views"
+                }
+            }
+        },
+        "commands": [
+            {
+                "command": "llmSpend.refresh",
+                "title": "LLM Spend: Refresh Data"
+            },
+            {
+                "command": "llmSpend.openSidebar",
+                "title": "LLM Spend: Open Sidebar"
+            },
+            {
+                "command": "llmSpend.configure",
+                "title": "LLM Spend: Configure Settings"
+            }
+        ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "llm-spend",
+                    "title": "LLM Spend",
+                    "icon": "resources/logo.svg"
+                }
+            ]
+        },
+        "views": {
+            "llm-spend": [
+                {
+                    "type": "webview",
+                    "id": "llmSpend.sidebar",
+                    "name": "Spend Dashboard"
+                },
+                {
+                    "id": "llmSpend.treeView",
+                    "name": "Spend Breakdown"
+                }
+            ]
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "node esbuild.js --production",
+        "compile": "node esbuild.js",
+        "watch": "node esbuild.js --watch",
+        "package": "vsce package --no-dependencies",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "lint": "eslint src --ext ts",
+        "format": "prettier --write \"src/**/*.ts\""
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.0",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.19.0",
+        "@typescript-eslint/parser": "^6.19.0",
+        "@vscode/vsce": "^3.9.2",
+        "esbuild": "^0.19.11",
+        "eslint": "^8.56.0",
+        "prettier": "^3.2.4",
+        "typescript": "^5.3.3",
+        "vitest": "^1.2.0"
+    },
+    "dependencies": {
+        "axios": "^1.6.5"
+    }
+}
