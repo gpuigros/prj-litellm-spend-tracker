@@ -9,74 +9,74 @@ import { Logger } from '../../utils/logger';
 import type { Period } from '../../types';
 
 export class SpendWebviewProvider implements vscode.WebviewViewProvider {
-    private webviewView?: vscode.WebviewView;
+  private webviewView?: vscode.WebviewView;
 
-    constructor(
-        private readonly extensionUri: vscode.Uri,
-        private spendState: SpendStateManager,
-        private budgetState: BudgetStateManager
-    ) {
-        // Update webview when state changes
-        spendState.onDidChangeState(() => this.updateWebview());
-        budgetState.onDidChangeState(() => this.updateWebview());
-    }
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private spendState: SpendStateManager,
+    private budgetState: BudgetStateManager
+  ) {
+    // Update webview when state changes
+    spendState.onDidChangeState(() => this.updateWebview());
+    budgetState.onDidChangeState(() => this.updateWebview());
+  }
 
-    /**
-     * Resolve webview view
-     */
-    resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        token: vscode.CancellationToken
-    ): void {
-        this.webviewView = webviewView;
+  /**
+   * Resolve webview view
+   */
+  resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    context: vscode.WebviewViewResolveContext,
+    token: vscode.CancellationToken
+  ): void {
+    this.webviewView = webviewView;
 
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [this.extensionUri],
-        };
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this.extensionUri],
+    };
 
-        // Handle messages from webview
-        webviewView.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'changePeriod':
-                        this.spendState.setPeriod(message.period as Period);
-                        break;
-                    case 'refresh':
-                        vscode.commands.executeCommand('llmSpend.refresh');
-                        break;
-                }
-            },
-            undefined,
-            []
-        );
-
-        this.updateWebview();
-    }
-
-    /**
-     * Update webview content
-     */
-    private updateWebview(): void {
-        if (!this.webviewView) {
-            return;
+    // Handle messages from webview
+    webviewView.webview.onDidReceiveMessage(
+      message => {
+        switch (message.command) {
+          case 'changePeriod':
+            this.spendState.setPeriod(message.period as Period);
+            break;
+          case 'refresh':
+            vscode.commands.executeCommand('llmSpend.refresh');
+            break;
         }
+      },
+      undefined,
+      []
+    );
 
-        const spendState = this.spendState.getState();
-        const budgetState = this.budgetState.getState();
+    this.updateWebview();
+  }
 
-        const html = this.getHtmlContent(spendState, budgetState);
-        this.webviewView.webview.html = html;
+  /**
+   * Update webview content
+   */
+  private updateWebview(): void {
+    if (!this.webviewView) {
+      return;
     }
 
-    /**
-     * Generate HTML content for webview
-     */
-    private getHtmlContent(spendState: any, budgetState: any): string {
-        const nonce = this.getNonce();
+    const spendState = this.spendState.getState();
+    const budgetState = this.budgetState.getState();
 
-        return `<!DOCTYPE html>
+    const html = this.getHtmlContent(spendState, budgetState);
+    this.webviewView.webview.html = html;
+  }
+
+  /**
+   * Generate HTML content for webview
+   */
+  private getHtmlContent(spendState: any, budgetState: any): string {
+    const nonce = this.getNonce();
+
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -203,7 +203,9 @@ export class SpendWebviewProvider implements vscode.WebviewViewProvider {
   ${spendState.byModel && spendState.byModel.models.length > 0 ? `
     <div class="section">
       <div class="section-title">By Model</div>
-      ${spendState.byModel.models.map((model: any) => `
+      ${spendState.byModel.models
+          .filter((model: any) => model.model)
+          .map((model: any) => `
         <div class="stat">
           <span class="stat-label">${model.model}:</span>
           <span class="stat-value">$${model.spend.toFixed(2)} (${model.percentage.toFixed(1)}%)</span>
@@ -244,24 +246,24 @@ export class SpendWebviewProvider implements vscode.WebviewViewProvider {
   </script>
 </body>
 </html>`;
-    }
+  }
 
-    /**
-     * Generate nonce for CSP
-     */
-    private getNonce(): string {
-        let text = '';
-        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        for (let i = 0; i < 32; i++) {
-            text += possible.charAt(Math.floor(Math.random() * possible.length));
-        }
-        return text;
+  /**
+   * Generate nonce for CSP
+   */
+  private getNonce(): string {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < 32; i++) {
+      text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
+    return text;
+  }
 
-    /**
-     * Dispose resources
-     */
-    dispose(): void {
-        // Webview disposal handled by VS Code
-    }
+  /**
+   * Dispose resources
+   */
+  dispose(): void {
+    // Webview disposal handled by VS Code
+  }
 }

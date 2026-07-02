@@ -166,7 +166,11 @@ export class SpendTreeProvider implements vscode.TreeDataProvider<TreeItem> {
             return Promise.resolve([]);
         }
 
-        const items = state.byModel.models.map(model => new ModelItem(model));
+        // Defensive: drop rows with empty model names so the tree never
+        // shows a blank entry.
+        const items = state.byModel.models
+            .filter(model => model.model)
+            .map(model => new ModelItem(model));
         return Promise.resolve(items);
     }
 

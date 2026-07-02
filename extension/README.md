@@ -39,6 +39,10 @@ Configure the extension in VS Code settings:
 - `llmSpend.apiBaseUrl`: Base URL of the LLM Spend API (default: <http://localhost:8000>)
 - `llmSpend.refreshInterval`: Auto-refresh interval in seconds (default: 300, 0 to disable)
 - `llmSpend.defaultPeriod`: Default time period (today/week/month, default: month)
+- `llmSpend.statusBarFormat`: Status bar display format (default: both)
+  - `amount` — shows only the dollar amount (e.g. `$12.34`)
+  - `percentage` — shows only the budget percentage (e.g. `45.2%`)
+  - `both` — shows amount and percentage (e.g. `$12.34 / 45.2%`)
 
 ## Usage
 

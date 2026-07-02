@@ -157,6 +157,120 @@ The extension provides the following configuration options accessible via VS Cod
 }
 ```
 
+## Database Integration
+
+The backend service integrates directly with LiteLLM's PostgreSQL database to read spend data and validate API keys. This section explains the database schema requirements and important implementation details.
+
+### Table Names
+
+**Important**: LiteLLM uses PascalCase table names. The backend expects these exact table names:
+
+- `"LiteLLM_SpendLogs"` - Stores all LLM request spend data
+- `"LiteLLM_VerificationToken"` - Stores API key verification tokens
+
+Do not create lowercase variants like `litellm_spend_logs` - these will not be used by LiteLLM and will remain empty.
+
+### API Key Storage and Hashing
+
+LiteLLM stores API keys as **SHA-256 hashes** in the `token` column of `"LiteLLM_VerificationToken"`. The backend automatically hashes incoming API keys before validation:
+
+```python
+# Example: How keys are stored
+Original key: sk-test-key-12345
+Stored hash:  9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b
+```
+
+The validation flow:
+
+1. User sends API key in `Authorization: Bearer sk-...` header
+2. Backend strips `Bearer` prefix
+3. Backend hashes keys starting with `sk-` using SHA-256
+4. Backend queries `"LiteLLM_VerificationToken"` for the hashed value
+5. If found, user identity is extracted from the token record
+
+### Spend Attribution
+
+The backend filters spend logs by the **hashed API key** (`api_key` column in `"LiteLLM_SpendLogs"`), not by the `user` column. This is more precise than filtering by `user_id` because:
+
+- LiteLLM writes the key hash to `api_key` on every request
+- The `user` column may be `default_user_id` or NULL depending on key configuration
+- Filtering by `api_key` guarantees spend is attributed to the exact key that made the request
+
+### Budget Windows
+
+LiteLLM stores the real budget in the `budget_limits` JSONB column as an array:
+
+```json
+[{"reset_at": "2026-08-01T00:00:00+00:00", "max_budget": 44.0, "budget_duration": "30d"}]
+```
+
+The backend reads this window and computes spend over `[reset_at - duration, reset_at)`. The `budget_reset_at` column is the **next** reset (a future timestamp), so the current window starts at `reset_at - duration`.
+
+If `budget_limits` is empty/missing, the backend falls back to the flat `max_budget` column, and finally to the global default (`settings.default_monthly_budget`).
+
+### Database Connection
+
+Configure the database connection in `backend/.env`:
+
+```bash
+DATABASE_URL=postgresql+asyncpg://username:password@host:5432/litellm
+```
+
+**Requirements**:
+
+- The database user must have `SELECT` permissions on both tables
+- For production, use a read-only database user
+- The backend uses connection pooling (10 connections, 20 overflow)
+
+### Local Development with Docker
+
+The included `docker-compose.yml` sets up a local PostgreSQL instance with the correct schema:
+
+```bash
+cd backend
+docker-compose up -d
+```
+
+This creates:
+
+- PostgreSQL database with correct PascalCase table names
+- Sample data with pre-hashed API keys for testing
+- Automatic schema initialization via `init.sql`
+
+**Test API keys** (from `init.sql`):
+
+- `sk-test-key-12345` → user: `test-user-1`
+- `sk-test-key-67890` → user: `test-user-2`
+
+### Production Deployment
+
+When deploying to production:
+
+1. **Point to LiteLLM's database**: Set `DATABASE_URL` to your LiteLLM PostgreSQL instance
+2. **Use read-only credentials**: Create a database user with only `SELECT` permissions
+3. **Do not run migrations**: The backend only reads from LiteLLM's tables - never modify them
+4. **Verify table names**: Ensure your LiteLLM instance uses the standard PascalCase table names
+
+### Troubleshooting Database Issues
+
+**"Invalid API key" errors**:
+
+- Verify the API key exists in `"LiteLLM_VerificationToken"` (check the hashed `token` column)
+- Ensure the key starts with `sk-` (non-sk- keys are not hashed)
+- Check that the `user_id` column is populated for the key
+
+**Empty spend data**:
+
+- Verify `"LiteLLM_SpendLogs"` contains records for your user
+- Check that the `user` column matches your `user_id` from the verification token
+- Ensure the `startTime` and `endTime` columns are populated
+
+**Table not found errors**:
+
+- Confirm table names are PascalCase: `"LiteLLM_SpendLogs"` and `"LiteLLM_VerificationToken"`
+- Check database user has `SELECT` permissions on both tables
+- Verify the database schema matches LiteLLM's expected structure
+
 ## Authentication
 
 The extension supports multiple authentication methods:

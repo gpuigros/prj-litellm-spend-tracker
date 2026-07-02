@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { SpendStateManager } from '../../state/spendState';
 import { BudgetStateManager } from '../../state/budgetState';
+import { Configuration } from '../../config/configuration';
 import { Logger } from '../../utils/logger';
 
 export class StatusBarManager {
@@ -61,27 +62,46 @@ export class StatusBarManager {
 
         const summary = spendState.summary;
         const budget = budgetState.budget;
+        const format = Configuration.getStatusBarFormat();
 
         // Budget exceeded
         if (budget && budget.state === 'exceeded') {
-            this.statusBarItem.text = `$(warning) $${summary.spend.toFixed(2)}`;
-            this.statusBarItem.tooltip = `Budget exceeded! Spent $${summary.spend.toFixed(2)} of $${summary.budget.toFixed(2)}`;
+            this.statusBarItem.text = `$(warning) ${this.formatDisplay(summary.spend, summary.budget_used_percent, format)}`;
+            this.statusBarItem.tooltip = `Budget exceeded! Spent $${summary.spend.toFixed(2)} of $${summary.budget.toFixed(2)} (${summary.budget_used_percent.toFixed(1)}%)`;
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
             return;
         }
 
         // Budget warning
         if (budget && budget.state === 'warning') {
-            this.statusBarItem.text = `$(alert) $${summary.spend.toFixed(2)}`;
+            this.statusBarItem.text = `$(alert) ${this.formatDisplay(summary.spend, summary.budget_used_percent, format)}`;
             this.statusBarItem.tooltip = `Budget warning: ${summary.budget_used_percent.toFixed(1)}% used ($${summary.spend.toFixed(2)} of $${summary.budget.toFixed(2)})`;
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
             return;
         }
 
         // Normal state
-        this.statusBarItem.text = `$(coin) $${summary.spend.toFixed(2)}`;
+        this.statusBarItem.text = `$(coin) ${this.formatDisplay(summary.spend, summary.budget_used_percent, format)}`;
         this.statusBarItem.tooltip = `LLM Spend: $${summary.spend.toFixed(2)} of $${summary.budget.toFixed(2)} (${summary.budget_used_percent.toFixed(1)}%)`;
         this.statusBarItem.backgroundColor = undefined;
+    }
+
+    /**
+     * Format the status bar text based on the user's preferred display format.
+     */
+    private formatDisplay(spend: number, percent: number, format: string): string {
+        const amount = `$${spend.toFixed(2)}`;
+        const pct = `${percent.toFixed(1)}%`;
+
+        switch (format) {
+            case 'percentage':
+                return pct;
+            case 'both':
+                return `${amount} / ${pct}`;
+            case 'amount':
+            default:
+                return amount;
+        }
     }
 
     /**

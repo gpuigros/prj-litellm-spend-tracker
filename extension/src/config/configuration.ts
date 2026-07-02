@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import { CONFIG_KEYS, CONFIG_SECTION, DEFAULTS } from '../constants';
-import type { ExtensionConfig, Period } from '../types';
+import type { ExtensionConfig, Period, StatusBarFormat } from '../types';
 
 export class Configuration {
     /**
@@ -17,6 +17,7 @@ export class Configuration {
             apiBaseUrl: config.get<string>(CONFIG_KEYS.API_BASE_URL, DEFAULTS.API_BASE_URL),
             refreshInterval: config.get<number>(CONFIG_KEYS.REFRESH_INTERVAL, DEFAULTS.REFRESH_INTERVAL),
             defaultPeriod: config.get<Period>(CONFIG_KEYS.DEFAULT_PERIOD, DEFAULTS.DEFAULT_PERIOD),
+            statusBarFormat: config.get<StatusBarFormat>(CONFIG_KEYS.STATUS_BAR_FORMAT, DEFAULTS.STATUS_BAR_FORMAT),
         };
     }
 
@@ -39,6 +40,13 @@ export class Configuration {
      */
     static getDefaultPeriod(): Period {
         return this.getConfig().defaultPeriod;
+    }
+
+    /**
+     * Get status bar format
+     */
+    static getStatusBarFormat(): StatusBarFormat {
+        return this.getConfig().statusBarFormat;
     }
 
     /**

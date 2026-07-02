@@ -1,30 +1,46 @@
-<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
-    <!-- Concept 2: Chart/graph with AI brain -->
-    <defs>
-        <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
-        </linearGradient>
-    </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+    <!--
+    LLM Spend Tracker activity bar / status bar icon.
+    Designed to be theme-agnostic: every visible stroke and fill uses
+    currentColor, so VS Code's iconForeground color (defined per theme)
+    is used directly. This gives a clean look in both dark and light
+    themes without any hard-coded colors.
+  -->
 
-    <!-- Background -->
-    <rect width="128" height="128" rx="20" fill="url(#grad2)" />
+    <!-- Rounded square frame (soft background that adapts to theme) -->
+    <rect x="10" y="10" width="108" height="108" rx="22" ry="22"
+        stroke="currentColor" stroke-width="4"
+        stroke-opacity="0.35" fill="none" />
 
-    <!-- Chart bars -->
-    <rect x="25" y="70" width="12" height="30" fill="#fff" opacity="0.9" />
-    <rect x="45" y="55" width="12" height="45" fill="#fff" opacity="0.9" />
-    <rect x="65" y="40" width="12" height="60" fill="#fff" opacity="0.9" />
-    <rect x="85" y="60" width="12" height="40" fill="#fff" opacity="0.9" />
+    <!-- Bar chart: three ascending bars representing spend tracking -->
+    <rect x="30" y="78" width="14" height="20" rx="2" ry="2"
+        fill="currentColor" fill-opacity="0.45" />
+    <rect x="50" y="62" width="14" height="36" rx="2" ry="2"
+        fill="currentColor" fill-opacity="0.70" />
+    <rect x="70" y="46" width="14" height="52" rx="2" ry="2"
+        fill="currentColor" />
 
-    <!-- Trend line -->
-    <polyline points="31,65 51,50 71,35 91,55" fill="none" stroke="#fff" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Trend arrow over the bars (spend going up) -->
+    <polyline points="36,68 58,52 78,38 96,28"
+        stroke="currentColor" stroke-width="4.5"
+        stroke-linecap="round" stroke-linejoin="round"
+        fill="none" />
+    <!-- Arrowhead -->
+    <polyline points="86,24 98,28 94,40"
+        stroke="currentColor" stroke-width="4.5"
+        stroke-linecap="round" stroke-linejoin="round"
+        fill="none" />
 
-    <!-- AI brain icon (top right) -->
-    <circle cx="100" cy="28" r="15" fill="#fff" opacity="0.3" />
-    <path d="M 95 25 Q 100 20 105 25 Q 108 28 105 31 Q 100 36 95 31 Q 92 28 95 25" fill="#fff"
-        opacity="0.9" />
-    <circle cx="98" cy="27" r="1.5" fill="#4facfe" />
-    <circle cx="102" cy="27" r="1.5" fill="#4facfe" />
-    <circle cx="100" cy="30" r="1.5" fill="#4facfe" />
+    <!-- Coin / currency marker (top-left) — outline so it reads on both themes -->
+    <circle cx="30" cy="30" r="11"
+        stroke="currentColor" stroke-width="4" fill="none" />
+    <!-- Dollar sign inside the coin (single-stroke) -->
+    <path d="M30 23 V37 M25.5 26.5 H33 A2 2 0 0 1 33 30.5 H27 A2 2 0 0 0 27 34.5 H34.5"
+        stroke="currentColor" stroke-width="2.6"
+        stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+    <!-- "AI sparkle" top-right — visual hint for LLM -->
+    <path d="M98 16 L100.4 22.6 L107 25 L100.4 27.4 L98 34 L95.6 27.4 L89 25 L95.6 22.6 Z"
+        fill="currentColor" />
+    <circle cx="110" cy="40" r="2.2" fill="currentColor" />
 </svg>

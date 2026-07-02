@@ -2,11 +2,11 @@
     "name": "litellm-spend-tracker",
     "displayName": "LiteLLM Spend Tracker",
     "description": "Track and visualize LLM expenditure with LiteLLM in VS Code",
-    "version": "1.0.0",
-    "publisher": "your-github-username",
+    "version": "1.0.2",
+    "publisher": "gpuigros",
     "repository": {
         "type": "git",
-        "url": "https://github.com/your-github-username/litellm-spend-tracker"
+        "url": "https://github.com/gpuigros/prj-litellm-spend-tracker"
     },
     "engines": {
         "vscode": "^1.85.0"
@@ -41,6 +41,16 @@
                     ],
                     "default": "month",
                     "description": "Default time period for spend views"
+                },
+                "llmSpend.statusBarFormat": {
+                    "type": "string",
+                    "enum": [
+                        "amount",
+                        "percentage",
+                        "both"
+                    ],
+                    "default": "both",
+                    "description": "Status bar display format: amount ($X.XX), percentage (X%), or both ($X.XX / X%)"
                 }
             }
         },

@@ -120,14 +120,15 @@ export function activate(context: vscode.ExtensionContext): void {
  * Refresh all spend and budget data
  */
 async function refreshData(forceRefresh: boolean): Promise<void> {
-    try {
-        const period = spendStateManager.getState().period;
+    const period = spendStateManager.getState().period;
 
-        spendStateManager.setLoading(true);
-        budgetStateManager.setLoading(true);
+    spendStateManager.setLoading(true);
+    budgetStateManager.setLoading(true);
 
-        // Fetch all data in parallel
-        const [summary, byModel, byProject, daily, budget] = await Promise.all([
+    // Fetch all data in parallel — use allSettled so one failure
+    // does not discard the rest
+    const [summaryResult, byModelResult, byProjectResult, dailyResult, budgetResult] =
+        await Promise.allSettled([
             spendService.getSummary(period, forceRefresh),
             spendService.getByModel(period, forceRefresh),
             spendService.getByProject(period, forceRefresh),
@@ -135,20 +136,70 @@ async function refreshData(forceRefresh: boolean): Promise<void> {
             budgetService.getBudget(forceRefresh),
         ]);
 
-        // Update state
-        spendStateManager.setSummary(summary);
-        spendStateManager.setByModel(byModel);
-        spendStateManager.setByProject(byProject);
-        spendStateManager.setDaily(daily);
-        budgetStateManager.setBudget(budget);
+    // Collect errors for partial-failure reporting
+    const errors: string[] = [];
 
-        Logger.info('Data refreshed successfully', { period });
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        Logger.error('Failed to refresh data', error);
-        spendStateManager.setError(errorMessage);
-        budgetStateManager.setError(errorMessage);
+    // Update state for each fulfilled result; collect rejections
+    if (summaryResult.status === 'fulfilled') {
+        spendStateManager.setSummary(summaryResult.value);
+    } else {
+        const msg = errorMessage(summaryResult.reason);
+        errors.push(`summary: ${msg}`);
+        Logger.error('Failed to fetch spend summary', summaryResult.reason);
     }
+
+    if (byModelResult.status === 'fulfilled') {
+        spendStateManager.setByModel(byModelResult.value);
+    } else {
+        const msg = errorMessage(byModelResult.reason);
+        errors.push(`by-model: ${msg}`);
+        Logger.error('Failed to fetch spend by model', byModelResult.reason);
+    }
+
+    if (byProjectResult.status === 'fulfilled') {
+        spendStateManager.setByProject(byProjectResult.value);
+    } else {
+        const msg = errorMessage(byProjectResult.reason);
+        errors.push(`by-project: ${msg}`);
+        Logger.error('Failed to fetch spend by project', byProjectResult.reason);
+    }
+
+    if (dailyResult.status === 'fulfilled') {
+        spendStateManager.setDaily(dailyResult.value);
+    } else {
+        const msg = errorMessage(dailyResult.reason);
+        errors.push(`daily: ${msg}`);
+        Logger.error('Failed to fetch daily spend', dailyResult.reason);
+    }
+
+    if (budgetResult.status === 'fulfilled') {
+        budgetStateManager.setBudget(budgetResult.value);
+    } else {
+        const msg = errorMessage(budgetResult.reason);
+        errors.push(`budget: ${msg}`);
+        Logger.error('Failed to fetch budget', budgetResult.reason);
+    }
+
+    if (errors.length > 0) {
+        const combined = errors.join('; ');
+        Logger.warn('Partial refresh failure', { errors });
+        spendStateManager.setError(combined);
+    } else {
+        Logger.info('Data refreshed successfully', { period });
+    }
+}
+
+/**
+ * Extract a human-readable message from an unknown error
+ */
+function errorMessage(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        return String((error as Record<string, unknown>).message);
+    }
+    return 'Unknown error';
 }
 
 export function deactivate(): void {
