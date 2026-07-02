@@ -20,6 +20,9 @@ async def get_budget(
 
     Returns monthly budget, spent amount, remaining budget,
     usage percentage, and budget state (normal/warning/exceeded).
+    
+    The budget is fetched from the API key's configuration in LiteLLM.
+    If no budget is configured for the key, falls back to global defaults.
     """
     service = BudgetService(db)
-    return await service.get_budget(current_user.id)
+    return await service.get_budget(current_user.id, current_user.api_key)

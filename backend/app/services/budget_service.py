@@ -1,4 +1,8 @@
-"""Budget service for budget calculations and state determination."""
+"""Budget service for budget calculations and state determination.
+
+Uses the real LiteLLM budget window (from ``budget_limits``) when
+available, falling back to the calendar month otherwise.
+"""
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,34 +22,35 @@ class BudgetService:
         self.spend_repo = SpendRepository(db)
         self.budget_repo = BudgetRepository(db)
 
-    async def get_budget(self, user_id: str) -> BudgetResponse:
+    async def get_budget(self, user_id: str, api_key: str) -> BudgetResponse:
         """Get budget information for user.
 
         Args:
             user_id: User identifier
+            api_key: User's API key (used to look up key-specific budget
+                and to filter spend logs)
 
         Returns:
             Budget information with state (normal/warning/exceeded)
         """
-        # Get current month spend
+        budget = await self.budget_repo.get_key_budget(api_key)
+
+        # Spend is always measured over the current calendar month so the
+        # budget panel reflects the same period the user selected. The
+        # budget window from budget_limits only provides max_budget.
         start_date, end_date = get_period_range(Period.MONTH)
-        spent = await self.spend_repo.get_total_spend(user_id, start_date, end_date)
+        spent = await self.spend_repo.get_total_spend(api_key, start_date, end_date)
 
-        # Get budget configuration
-        budget = await self.budget_repo.get_user_budget(user_id)
-
-        # Calculate remaining and percentage
-        remaining = budget.monthly_budget - spent
+        remaining = budget.max_budget - spent
         used_percent = (
-            (spent / budget.monthly_budget * 100) if budget.monthly_budget > 0 else 0
+            (spent / budget.max_budget * 100) if budget.max_budget > 0 else 0
         )
 
-        # Determine budget state
         state = self._determine_budget_state(used_percent)
 
         return BudgetResponse(
             user_id=user_id,
-            monthly_budget=budget.monthly_budget,
+            monthly_budget=budget.max_budget,
             currency=budget.currency,
             spent=spent,
             remaining=remaining,

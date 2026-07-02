@@ -32,7 +32,14 @@ CREATE TABLE IF NOT EXISTS "LiteLLM_VerificationToken" (
     models TEXT,
     metadata TEXT,
     created_at TIMESTAMP NOT NULL,
-    expires TIMESTAMP
+    expires TIMESTAMP,
+    -- Budget window columns (LiteLLM stores the real budget here)
+    budget_duration VARCHAR(20),
+    budget_id VARCHAR(255),
+    budget_limits JSONB,
+    budget_reset_at TIMESTAMP,
+    model_max_budget JSONB,
+    soft_budget_cooldown BOOLEAN
 );
 
 -- Create indexes for performance
@@ -46,10 +53,11 @@ CREATE INDEX IF NOT EXISTS idx_verification_tokens_user_id ON "LiteLLM_Verificat
 -- Note: tokens are SHA-256 hashes of the actual API keys
 -- sk-test-key-12345 -> 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b
 -- sk-test-key-67890 -> 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b
-INSERT INTO "LiteLLM_VerificationToken" (token, key_alias, spend, max_budget, user_id, metadata, created_at)
-VALUES 
-    ('9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b', 'test-key', 0.0, 100.0, 'test-user-1', '{"email": "test@example.com"}', NOW()),
-    ('1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b', 'test-key-2', 0.0, 50.0, 'test-user-2', '{"email": "user2@example.com"}', NOW())
+-- The first key uses a budget_limits window (30d, max 100), the second a flat max_budget.
+INSERT INTO "LiteLLM_VerificationToken" (token, key_alias, spend, max_budget, user_id, metadata, created_at, budget_limits, budget_duration, budget_reset_at)
+VALUES
+    ('9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b', 'test-key', 0.0, NULL, 'test-user-1', '{"email": "test@example.com"}', NOW(), '[{"reset_at": "2026-08-01T00:00:00+00:00", "max_budget": 100.0, "budget_duration": "30d"}]'::jsonb, '30d', '2026-08-01 00:00:00'),
+    ('1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b', 'test-key-2', 0.0, 50.0, 'test-user-2', '{"email": "user2@example.com"}', NOW(), NULL, NULL, NULL)
 ON CONFLICT (token) DO NOTHING;
 
 -- Insert sample spend logs

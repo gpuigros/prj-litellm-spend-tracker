@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, Integer, JSON, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -25,7 +25,7 @@ class LiteLLMSpendLog(Base):
     request_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     api_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     user: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
-    model: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    model: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     spend: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -57,3 +57,10 @@ class LiteLLMVirtualKeys(Base):
     key_metadata: Mapped[Optional[str]] = mapped_column("metadata", Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     expires: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Budget window columns (LiteLLM stores the real budget here, not in max_budget).
+    budget_duration: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    budget_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    budget_limits: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    budget_reset_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    model_max_budget: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    soft_budget_cooldown: Mapped[Optional[bool]] = mapped_column(nullable=True)

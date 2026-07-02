@@ -22,6 +22,15 @@ This FastAPI service aggregates spend data from LiteLLM and provides user-scoped
 - Docker and Docker Compose
 - Python 3.11+ (for local development)
 
+### Build
+
+```bash
+export IMAGE=lite-llm-spend-tracker-v1.3
+docker buildx build -t $IMAGE . 
+docker tag $IMAGE 206360149510.dkr.ecr.eu-west-1.amazonaws.com/automation:$IMAGE \
+&& docker push 206360149510.dkr.ecr.eu-west-1.amazonaws.com/automation:$IMAGE
+```
+
 ### Running with Docker
 
 ```bash

@@ -29,7 +29,7 @@ async def get_spend_summary(
     for the specified period (today, week, or month).
     """
     service = SpendService(db)
-    return await service.get_summary(current_user.id, period)
+    return await service.get_summary(current_user.id, current_user.api_key, period)
 
 
 @router.get("/by-model", response_model=SpendByModelResponse)
@@ -44,7 +44,7 @@ async def get_spend_by_model(
     for each model used during the specified period.
     """
     service = SpendService(db)
-    return await service.get_by_model(current_user.id, period)
+    return await service.get_by_model(current_user.id, current_user.api_key, period)
 
 
 @router.get("/by-project", response_model=SpendByProjectResponse)
@@ -59,7 +59,7 @@ async def get_spend_by_project(
     during the specified period.
     """
     service = SpendService(db)
-    return await service.get_by_project(current_user.id, period)
+    return await service.get_by_project(current_user.id, current_user.api_key, period)
 
 
 @router.get("/daily", response_model=SpendDailyResponse)
@@ -74,4 +74,4 @@ async def get_spend_daily(
     during the specified period.
     """
     service = SpendService(db)
-    return await service.get_daily(current_user.id, period)
+    return await service.get_daily(current_user.id, current_user.api_key, period)
