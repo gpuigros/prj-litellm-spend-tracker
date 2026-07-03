@@ -8,7 +8,7 @@ import { BudgetStateManager } from '../../state/budgetState';
 import { Logger } from '../../utils/logger';
 import type { ModelSpend, ProjectSpend } from '../../types';
 
-type TreeItem = SummaryItem | ModelItem | ProjectItem | DailyItem;
+type TreeItem = SummaryItem | ModelItem | ProjectItem | DailyItem | TokenBreakdownItem;
 
 class SummaryItem extends vscode.TreeItem {
     constructor(
@@ -25,11 +25,11 @@ class SummaryItem extends vscode.TreeItem {
 class ModelItem extends vscode.TreeItem {
     constructor(
         public readonly model: ModelSpend,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.None
+        public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.Collapsed
     ) {
         super(model.model, collapsibleState);
-        this.description = `$${model.spend.toFixed(2)} (${model.percentage.toFixed(1)}%)`;
-        this.tooltip = `${model.requests} requests, ${model.tokens} tokens`;
+        this.description = `$${model.spend.toFixed(2)} (${model.percentage.toFixed(1)}%) · ${model.tokens.toLocaleString()} tok`;
+        this.tooltip = `${model.requests} requests, ${model.tokens.toLocaleString()} tokens (in: ${model.prompt_tokens.toLocaleString()}, out: ${model.completion_tokens.toLocaleString()})`;
         this.contextValue = 'modelItem';
         this.iconPath = new vscode.ThemeIcon('symbol-misc');
     }
@@ -38,13 +38,22 @@ class ModelItem extends vscode.TreeItem {
 class ProjectItem extends vscode.TreeItem {
     constructor(
         public readonly project: ProjectSpend,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.None
+        public readonly collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.Collapsed
     ) {
         super(project.project, collapsibleState);
-        this.description = `$${project.spend.toFixed(2)} (${project.percentage.toFixed(1)}%)`;
-        this.tooltip = `${project.requests} requests`;
+        this.description = `$${project.spend.toFixed(2)} (${project.percentage.toFixed(1)}%) · ${project.tokens.toLocaleString()} tok`;
+        this.tooltip = `${project.requests} requests, ${project.tokens.toLocaleString()} tokens (in: ${project.prompt_tokens.toLocaleString()}, out: ${project.completion_tokens.toLocaleString()})`;
         this.contextValue = 'projectItem';
         this.iconPath = new vscode.ThemeIcon('folder');
+    }
+}
+
+class TokenBreakdownItem extends vscode.TreeItem {
+    constructor(label: string, value: number) {
+        super(label, vscode.TreeItemCollapsibleState.None);
+        this.description = value.toLocaleString();
+        this.contextValue = 'tokenItem';
+        this.iconPath = new vscode.ThemeIcon('dash');
     }
 }
 
@@ -106,6 +115,14 @@ export class SpendTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
         if (element instanceof SummaryItem && element.label === 'Daily') {
             return this.getDailyItems();
+        }
+
+        if (element instanceof ModelItem) {
+            return this.getTokenBreakdownItems(element.model);
+        }
+
+        if (element instanceof ProjectItem) {
+            return this.getTokenBreakdownItems(element.project);
         }
 
         return Promise.resolve([]);
@@ -184,6 +201,19 @@ export class SpendTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         }
 
         const items = state.byProject.projects.map(project => new ProjectItem(project));
+        return Promise.resolve(items);
+    }
+
+    /**
+     * Get token breakdown items for a model or project.
+     */
+    private getTokenBreakdownItems(entry: ModelSpend | ProjectSpend): Thenable<TreeItem[]> {
+        const items: TreeItem[] = [
+            new TokenBreakdownItem('Requests', entry.requests),
+            new TokenBreakdownItem('Total Tokens', entry.tokens),
+            new TokenBreakdownItem('Prompt (In)', entry.prompt_tokens),
+            new TokenBreakdownItem('Completion (Out)', entry.completion_tokens),
+        ];
         return Promise.resolve(items);
     }
 

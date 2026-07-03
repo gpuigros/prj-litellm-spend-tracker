@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import budget, spend
+from app.api.routes import budget, management, spend
 from app.config import settings
 from app.database.connection import close_db, init_db
 from app.exceptions import SpendAPIError
@@ -97,6 +97,7 @@ async def log_requests(request: Request, call_next) -> None:
 # Register routes
 app.include_router(spend.router, prefix="/me/spend", tags=["spend"])
 app.include_router(budget.router, prefix="/me", tags=["budget"])
+app.include_router(management.router, prefix="/management", tags=["management"])
 
 
 @app.get("/health")

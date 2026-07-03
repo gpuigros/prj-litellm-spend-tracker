@@ -16,8 +16,8 @@ This system provides developers with real-time insights into their AI-assisted d
 - **Rich Sidebar Panel**: Comprehensive spend dashboard with multiple views
 - **Status Bar Integration**: Quick glance at current month's LLM spend with color-coded budget state
 - **Spend Summary**: Total spend, budget, remaining budget, and usage percentage
-- **Model Breakdown**: Spend distribution across different LLM models (GPT-4, Claude, etc.)
-- **Project Breakdown**: Spend attribution by project or repository
+- **Model Breakdown**: Spend distribution across different LLM models (GPT-4, Claude, etc.) with token consumption (prompt/completion split)
+- **Project Breakdown**: Spend attribution by project or repository with token consumption
 - **Daily Trend**: Visual chart showing daily spend patterns
 - **Budget Warnings**: Visual alerts at 80% and 100% budget thresholds
 - **Period Selection**: View spend for today, current week, or current month
@@ -196,17 +196,11 @@ The backend filters spend logs by the **hashed API key** (`api_key` column in `"
 - The `user` column may be `default_user_id` or NULL depending on key configuration
 - Filtering by `api_key` guarantees spend is attributed to the exact key that made the request
 
-### Budget Windows
+### Budget
 
-LiteLLM stores the real budget in the `budget_limits` JSONB column as an array:
+The budget cap is the API key's `max_budget` column on `LiteLLM_VerificationToken` — the same hard cap LiteLLM enforces. The backend reads it directly, computes remaining/used percentage against it, and falls back to the global default (`settings.default_monthly_budget`) when the key has no `max_budget` configured.
 
-```json
-[{"reset_at": "2026-08-01T00:00:00+00:00", "max_budget": 44.0, "budget_duration": "30d"}]
-```
-
-The backend reads this window and computes spend over `[reset_at - duration, reset_at)`. The `budget_reset_at` column is the **next** reset (a future timestamp), so the current window starts at `reset_at - duration`.
-
-If `budget_limits` is empty/missing, the backend falls back to the flat `max_budget` column, and finally to the global default (`settings.default_monthly_budget`).
+LiteLLM also stores a rolling `budget_limits` JSONB window on the key. The spend tracker intentionally **does not** use it: the budget panel always shows progress against the key's hard cap, not against an arbitrary window. The columns are mapped on the SQLAlchemy model to mirror LiteLLM's real schema but are otherwise ignored.
 
 ### Database Connection
 

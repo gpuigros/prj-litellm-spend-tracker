@@ -2,7 +2,7 @@
     "name": "litellm-spend-tracker",
     "displayName": "LiteLLM Spend Tracker",
     "description": "Track and visualize LLM expenditure with LiteLLM in VS Code",
-    "version": "1.0.2",
+    "version": "1.0.5",
     "publisher": "gpuigros",
     "repository": {
         "type": "git",

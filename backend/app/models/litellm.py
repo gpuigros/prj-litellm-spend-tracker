@@ -57,7 +57,10 @@ class LiteLLMVirtualKeys(Base):
     key_metadata: Mapped[Optional[str]] = mapped_column("metadata", Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     expires: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    # Budget window columns (LiteLLM stores the real budget here, not in max_budget).
+    # LiteLLM also stores a rolling window (budget_limits JSONB) on the
+    # key. The spend tracker ignores it: the budget cap is always the
+    # flat max_budget column above. Columns are kept mapped so the
+    # SQLAlchemy model mirrors LiteLLM's real schema.
     budget_duration: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     budget_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     budget_limits: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)

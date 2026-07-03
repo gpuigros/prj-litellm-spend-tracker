@@ -10,8 +10,8 @@ This FastAPI service aggregates spend data from LiteLLM and provides user-scoped
 
 - **User-scoped access**: Each user can only see their own spend data
 - **Multiple time periods**: Today, week, or month views
-- **Model breakdown**: See which LLM models you're using
-- **Project attribution**: Track spend by project/repository
+- **Model breakdown**: See which LLM models you're using, including token consumption (prompt/completion split)
+- **Project attribution**: Track spend by project/repository, including token consumption
 - **Budget tracking**: Monitor usage against budget limits
 - **Docker-ready**: Fully containerized for easy deployment
 
@@ -82,6 +82,32 @@ All endpoints require authentication via Bearer token (LiteLLM virtual API key).
 
 - `GET /me/budget` - Get budget information
 
+The budget cap is the API key's `max_budget` column on `LiteLLM_VerificationToken` — the same hard cap LiteLLM enforces. The `budget_limits` JSONB rolling window is intentionally **not** used: the budget panel always shows progress against the key's hard cap, not against an arbitrary window. If the key has no `max_budget`, the service falls back to `DEFAULT_MONTHLY_BUDGET`.
+
+### Management Endpoints
+
+Management endpoints are authenticated with the LiteLLM master key (`LITELLM_MASTER_KEY`), not a regular virtual API key. A regular key is rejected with `403 Forbidden`.
+
+- `GET /management/spend?start_date=...&end_date=...` - Get spend for **all** API keys broken down by day and by model. Each entry is one `(api_key, day, model)` tuple. `start_date` and `end_date` are optional and default to the current month.
+
+#### Performance
+
+The management aggregation scans a month of `LiteLLM_SpendLogs` (one row per LLM call). To keep it fast on large tables:
+
+- Model normalization (stripping the provider prefix) is pushed into the SQL `GROUP BY`, so Postgres merges equivalent models before returning rows.
+- The query is unordered (the response is an aggregate list with no required ordering).
+- A per-connection `statement_timeout` (30s) makes runaway queries fail fast instead of hanging.
+
+> **Database schema ownership:** LiteLLM owns and creates the `LiteLLM_SpendLogs` and `LiteLLM_VerificationToken` tables (and all base indexes) through its own migrations. This service only **reads** from them — it never creates or alters tables. The `init.sql` file in this repo exists solely to seed a **local/test** database for development and the test suite; it is **not** run against the real LiteLLM database.
+>
+> The only schema-level change this service requires on the real LiteLLM database is a single optional performance index. Apply it once with `sql/management_spend_index.sql`:
+>
+> ```bash
+> psql "$DATABASE_URL" -f sql/management_spend_index.sql
+> ```
+>
+> It uses `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, so it is safe to re-run and does not block LiteLLM writes.
+
 ### Periods
 
 - `today` - Current day
@@ -93,6 +119,8 @@ All endpoints require authentication via Bearer token (LiteLLM virtual API key).
 Environment variables (see `.env.example`):
 
 - `DATABASE_URL` - PostgreSQL connection string
+- `DB_HOST` / `DB_USER` / `DB_PASSWORD` - Discrete DB connection parts; when `DB_HOST` is set they take precedence over `DATABASE_URL`
+- `LITELLM_MASTER_KEY` - LiteLLM master key used to authenticate management endpoints
 - `DEBUG` - Enable debug mode
 - `LOG_LEVEL` - Logging level (INFO, DEBUG, etc.)
 - `CORS_ORIGINS` - Allowed CORS origins (JSON array)

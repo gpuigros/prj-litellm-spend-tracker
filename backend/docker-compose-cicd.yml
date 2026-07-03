@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # LLM Spend API
+  spend-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - DEBUG=${DEBUG}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - DEFAULT_MONTHLY_BUDGET=${DEFAULT_MONTHLY_BUDGET}
+      - DEFAULT_CURRENCY=${DEFAULT_CURRENCY}
+    volumes:
+      - ./app:/app/app:ro
+    networks:
+      - spend-network
+
+networks:
+  spend-network:
+    driver: bridge

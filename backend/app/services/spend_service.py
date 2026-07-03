@@ -2,19 +2,22 @@
 
 The ``period`` query parameter (today/week/month) selected in the
 extension controls the date range for **all** spend queries — summary,
-by-model, by-project, and daily. The budget window from
-``budget_limits`` is used only to resolve the ``max_budget`` value for
-the budget math (remaining, used percentage, state), never to override
-the selected period.
+by-model, by-project, and daily. The budget cap is the API key's
+``max_budget`` column on ``LiteLLM_VerificationToken``, used for the
+budget math (remaining, used percentage) but never to override the
+selected period.
 """
 
 from datetime import datetime
 from typing import List, Tuple
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.spend import (
     DailySpend,
+    ManagementModelDailySpend,
+    ManagementSpendResponse,
     ModelSpend,
     Period,
     ProjectSpend,
@@ -26,6 +29,8 @@ from app.models.spend import (
 from app.repositories.budget_repository import BudgetData, BudgetRepository
 from app.repositories.spend_repository import SpendRepository
 from app.utils.date_utils import get_period_range
+
+logger = structlog.get_logger()
 
 
 class SpendService:
@@ -106,6 +111,8 @@ class SpendService:
                     percentage=percentage,
                     requests=item.requests,
                     tokens=item.tokens,
+                    prompt_tokens=item.prompt_tokens,
+                    completion_tokens=item.completion_tokens,
                 )
             )
 
@@ -142,6 +149,9 @@ class SpendService:
                     spend=item.spend,
                     percentage=percentage,
                     requests=item.requests,
+                    tokens=item.tokens,
+                    prompt_tokens=item.prompt_tokens,
+                    completion_tokens=item.completion_tokens,
                 )
             )
 
@@ -183,4 +193,66 @@ class SpendService:
             period=period,
             currency=budget.currency,
             days=days,
+        )
+
+    async def get_management_spend(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        currency: str,
+    ) -> ManagementSpendResponse:
+        """Get spend for all API keys broken down by day and by model.
+
+        This is the backing method for the management endpoint, which is
+        authenticated with the LiteLLM master key (not a regular virtual
+        key). It aggregates spend across every API key in the date range
+        and returns one entry per (api_key, day, model) tuple.
+
+        Args:
+            start_date: Period start (inclusive).
+            end_date: Period end (inclusive).
+            currency: Currency code to surface in the response.
+
+        Returns:
+            Management spend response with per-key/day/model entries.
+        """
+        import time
+
+        t0 = time.perf_counter()
+        rows = await self.spend_repo.get_management_spend_by_key_day_model(
+            start_date, end_date
+        )
+        t1 = time.perf_counter()
+        logger.info(
+            "management spend repo query done",
+            rows=len(rows),
+            elapsed_ms=round((t1 - t0) * 1000, 2),
+        )
+
+        entries = [
+            ManagementModelDailySpend(
+                api_key=row.api_key,
+                key_alias=row.key_alias,
+                day=row.date,
+                model=row.model,
+                spend=row.spend,
+                requests=row.requests,
+                tokens=row.tokens,
+                prompt_tokens=row.prompt_tokens,
+                completion_tokens=row.completion_tokens,
+            )
+            for row in rows
+        ]
+        t2 = time.perf_counter()
+        logger.info(
+            "management spend response built",
+            entries=len(entries),
+            elapsed_ms=round((t2 - t1) * 1000, 2),
+        )
+
+        return ManagementSpendResponse(
+            start_date=start_date.date(),
+            end_date=end_date.date(),
+            currency=currency,
+            entries=entries,
         )

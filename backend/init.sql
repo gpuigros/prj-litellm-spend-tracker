@@ -1,6 +1,17 @@
--- Initialize LiteLLM database schema for testing
--- This simulates the tables that LiteLLM creates
--- Note: LiteLLM uses PascalCase table names and stores API keys as SHA-256 hashes
+-- LOCAL/TEST DATABASE SEED ONLY — DO NOT RUN AGAINST THE REAL LITELLM DATABASE.
+--
+-- LiteLLM owns and creates the real schema (tables, base indexes, migrations)
+-- for "LiteLLM_SpendLogs" and "LiteLLM_VerificationToken". This service only
+-- READS from those tables; it never creates or alters them in production.
+--
+-- This file exists solely to bootstrap a local/test PostgreSQL instance for
+-- development and the test suite. It is mounted into the docker-compose
+-- postgres container's docker-entrypoint-initdb.d and run once on first init.
+--
+-- The only schema-level change this service needs on the real LiteLLM DB is a
+-- single optional performance index — see sql/management_spend_index.sql.
+--
+-- Note: LiteLLM uses PascalCase table names and stores API keys as SHA-256 hashes.
 
 -- Spend logs table (matches LiteLLM's actual table name)
 CREATE TABLE IF NOT EXISTS "LiteLLM_SpendLogs" (
@@ -47,16 +58,24 @@ CREATE INDEX IF NOT EXISTS idx_spend_logs_user ON "LiteLLM_SpendLogs"("user");
 CREATE INDEX IF NOT EXISTS idx_spend_logs_api_key ON "LiteLLM_SpendLogs"(api_key);
 CREATE INDEX IF NOT EXISTS idx_spend_logs_starttime ON "LiteLLM_SpendLogs"("startTime");
 CREATE INDEX IF NOT EXISTS idx_spend_logs_model ON "LiteLLM_SpendLogs"(model);
+-- Composite covering index for the management spend aggregation, which
+-- filters by startTime range and groups by (api_key, day, model). This
+-- lets Postgres satisfy the range scan and grouping from the index
+-- without heap-fetching every matching row.
+CREATE INDEX IF NOT EXISTS idx_spend_logs_starttime_apikey_model
+    ON "LiteLLM_SpendLogs"("startTime", api_key, model);
 CREATE INDEX IF NOT EXISTS idx_verification_tokens_user_id ON "LiteLLM_VerificationToken"(user_id);
 
 -- Insert sample data for testing
 -- Note: tokens are SHA-256 hashes of the actual API keys
 -- sk-test-key-12345 -> 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b
 -- sk-test-key-67890 -> 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b
--- The first key uses a budget_limits window (30d, max 100), the second a flat max_budget.
+-- Both keys configure their budget via the flat max_budget column. The
+-- budget_limits JSONB window is intentionally NOT used: the spend
+-- tracker must compare against the key's hard cap, not a rolling window.
 INSERT INTO "LiteLLM_VerificationToken" (token, key_alias, spend, max_budget, user_id, metadata, created_at, budget_limits, budget_duration, budget_reset_at)
 VALUES
-    ('9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b', 'test-key', 0.0, NULL, 'test-user-1', '{"email": "test@example.com"}', NOW(), '[{"reset_at": "2026-08-01T00:00:00+00:00", "max_budget": 100.0, "budget_duration": "30d"}]'::jsonb, '30d', '2026-08-01 00:00:00'),
+    ('9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b', 'test-key', 0.0, 100.0, 'test-user-1', '{"email": "test@example.com"}', NOW(), NULL, NULL, NULL),
     ('1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b', 'test-key-2', 0.0, 50.0, 'test-user-2', '{"email": "user2@example.com"}', NOW(), NULL, NULL, NULL)
 ON CONFLICT (token) DO NOTHING;
 

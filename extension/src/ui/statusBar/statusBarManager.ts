@@ -64,25 +64,32 @@ export class StatusBarManager {
         const budget = budgetState.budget;
         const format = Configuration.getStatusBarFormat();
 
+        // The status bar always reflects the monthly budget window, so the
+        // displayed amount/percentage and the warning/exceeded state always
+        // agree regardless of the period selected in the dashboard.
+        const monthlySpend = budget ? budget.spent : summary.spend;
+        const monthlyPercent = budget ? budget.used_percent : summary.budget_used_percent;
+        const monthlyBudget = budget ? budget.monthly_budget : summary.budget;
+
         // Budget exceeded
         if (budget && budget.state === 'exceeded') {
-            this.statusBarItem.text = `$(warning) ${this.formatDisplay(summary.spend, summary.budget_used_percent, format)}`;
-            this.statusBarItem.tooltip = `Budget exceeded! Spent $${summary.spend.toFixed(2)} of $${summary.budget.toFixed(2)} (${summary.budget_used_percent.toFixed(1)}%)`;
+            this.statusBarItem.text = `$(warning) ${this.formatDisplay(monthlySpend, monthlyPercent, format)}`;
+            this.statusBarItem.tooltip = `Budget exceeded! Spent $${monthlySpend.toFixed(2)} of $${monthlyBudget.toFixed(2)} (${monthlyPercent.toFixed(1)}% of monthly budget)`;
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
             return;
         }
 
         // Budget warning
         if (budget && budget.state === 'warning') {
-            this.statusBarItem.text = `$(alert) ${this.formatDisplay(summary.spend, summary.budget_used_percent, format)}`;
-            this.statusBarItem.tooltip = `Budget warning: ${summary.budget_used_percent.toFixed(1)}% used ($${summary.spend.toFixed(2)} of $${summary.budget.toFixed(2)})`;
+            this.statusBarItem.text = `$(alert) ${this.formatDisplay(monthlySpend, monthlyPercent, format)}`;
+            this.statusBarItem.tooltip = `Budget warning: ${monthlyPercent.toFixed(1)}% of monthly budget used ($${monthlySpend.toFixed(2)} of $${monthlyBudget.toFixed(2)})`;
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
             return;
         }
 
         // Normal state
-        this.statusBarItem.text = `$(coin) ${this.formatDisplay(summary.spend, summary.budget_used_percent, format)}`;
-        this.statusBarItem.tooltip = `LLM Spend: $${summary.spend.toFixed(2)} of $${summary.budget.toFixed(2)} (${summary.budget_used_percent.toFixed(1)}%)`;
+        this.statusBarItem.text = `$(coin) ${this.formatDisplay(monthlySpend, monthlyPercent, format)}`;
+        this.statusBarItem.tooltip = `LLM Spend (this month): $${monthlySpend.toFixed(2)} of $${monthlyBudget.toFixed(2)} (${monthlyPercent.toFixed(1)}%)`;
         this.statusBarItem.backgroundColor = undefined;
     }
 

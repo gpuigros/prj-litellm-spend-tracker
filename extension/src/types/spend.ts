@@ -20,6 +20,8 @@ export interface ModelSpend {
     percentage: number;
     requests: number;
     tokens: number;
+    prompt_tokens: number;
+    completion_tokens: number;
 }
 
 export interface SpendByModel {
@@ -33,6 +35,9 @@ export interface ProjectSpend {
     spend: number;
     percentage: number;
     requests: number;
+    tokens: number;
+    prompt_tokens: number;
+    completion_tokens: number;
 }
 
 export interface SpendByProject {

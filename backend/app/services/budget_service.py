@@ -1,7 +1,9 @@
 """Budget service for budget calculations and state determination.
 
-Uses the real LiteLLM budget window (from ``budget_limits``) when
-available, falling back to the calendar month otherwise.
+The budget cap is the API key's ``max_budget`` column on
+``LiteLLM_VerificationToken`` — the same hard cap LiteLLM enforces.
+Spend is always measured over the current calendar month so the budget
+panel reflects the same period the user selected.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,7 +39,7 @@ class BudgetService:
 
         # Spend is always measured over the current calendar month so the
         # budget panel reflects the same period the user selected. The
-        # budget window from budget_limits only provides max_budget.
+        # budget cap comes from the key's max_budget column.
         start_date, end_date = get_period_range(Period.MONTH)
         spent = await self.spend_repo.get_total_spend(api_key, start_date, end_date)
 

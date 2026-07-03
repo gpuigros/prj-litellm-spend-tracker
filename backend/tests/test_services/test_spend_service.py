@@ -65,7 +65,7 @@ async def test_spend_service_get_daily(db_session: AsyncSession) -> None:
 
 async def _seed_key(db_session: AsyncSession) -> None:
     """Insert a verification token with a flat max_budget so the service
-    can resolve a budget without a budget_limits window.
+    can resolve a budget from the key.
     """
     from datetime import datetime
 
