@@ -148,7 +148,7 @@ The extension provides the following configuration options accessible via VS Cod
 
 ```json
 {
-  "llmSpend.apiBaseUrl": "http://localhost:8000",
+  "llmSpend.apiBaseUrl": "https://spend-tracker.cicd.flexways-hosting.net",
   "llmSpend.refreshIntervalMinutes": 5,
   "llmSpend.defaultPeriod": "month",
   "llmSpend.showTokens": true,
@@ -264,6 +264,169 @@ When deploying to production:
 - Confirm table names are PascalCase: `"LiteLLM_SpendLogs"` and `"LiteLLM_VerificationToken"`
 - Check database user has `SELECT` permissions on both tables
 - Verify the database schema matches LiteLLM's expected structure
+
+## Connectivity & Smoke Tests
+
+You can validate the backend is reachable, the database is connected, and
+authentication is wired correctly using plain `curl`. These calls are the
+same ones the extension issues under the hood and are the fastest way to
+debug a freshly-deployed instance.
+
+### Prerequisites
+
+- The backend is running and listening (default: `https://spend-tracker.cicd.flexways-hosting.net`).
+- You have a LiteLLM virtual API key (development keys like
+  `sk-test-key-12345` work against the bundled `docker-compose.yml`).
+- For management endpoints, you have the LiteLLM master key (the value
+  of the `LITELLM_MASTER_KEY` environment variable on the server).
+
+For convenience, export the base URL and your key once and reuse them in
+the rest of this section:
+
+```bash
+export SPEND_API_URL="https://spend-tracker.cicd.flexways-hosting.net"
+export SPEND_API_KEY="sk-test-key-12345"           # virtual API key
+export LITELLM_MASTER_KEY="sk-1234..."             # server-side master key
+```
+
+### 1. Health check (no auth)
+
+Confirms the FastAPI process is up. No `Authorization` header needed.
+
+```bash
+curl -sS -i "${SPEND_API_URL}/health"
+```
+
+Expected response (HTTP `200`):
+
+```json
+{ "status": "healthy", "version": "1.0.0" }
+```
+
+A non-200 response, a connection refused, or a TLS error here means the
+process is not reachable — fix the network/port before testing auth.
+
+### 2. User-facing spend endpoints (virtual API key)
+
+All `/me/*` endpoints require a virtual API key in the
+`Authorization: Bearer` header. The backend hashes `sk-*` keys with
+SHA-256 before looking them up in `LiteLLM_VerificationToken`, matching
+LiteLLM's own behaviour.
+
+#### Spend summary
+
+```bash
+curl -sS "${SPEND_API_URL}/me/spend/summary?period=month" \
+  -H "Authorization: Bearer ${SPEND_API_KEY}"
+```
+
+With a `today` window:
+
+```bash
+curl -sS "${SPEND_API_URL}/me/spend/summary?period=today" \
+  -H "Authorization: Bearer ${SPEND_API_KEY}"
+```
+
+#### Spend by model
+
+```bash
+curl -sS "${SPEND_API_URL}/me/spend/by-model?period=month" \
+  -H "Authorization: Bearer ${SPEND_API_KEY}"
+```
+
+#### Spend by project
+
+```bash
+curl -sS "${SPEND_API_URL}/me/spend/by-project?period=week" \
+  -H "Authorization: Bearer ${SPEND_API_KEY}"
+```
+
+#### Daily spend trend
+
+```bash
+curl -sS "${SPEND_API_URL}/me/spend/daily?period=month" \
+  -H "Authorization: Bearer ${SPEND_API_KEY}"
+```
+
+#### Budget
+
+```bash
+curl -sS "${SPEND_API_URL}/me/budget" \
+  -H "Authorization: Bearer ${SPEND_API_KEY}"
+```
+
+A `401 Invalid or expired API key` response means the key is not in
+`LiteLLM_VerificationToken` (or its hash does not match). A `200` with
+empty arrays means the key is valid but has no spend yet in the
+requested period.
+
+### 3. Management endpoints (master key)
+
+The `/management/*` routes are **not** authenticated with a virtual key.
+They require the LiteLLM master key, which is the value of
+`LITELLM_MASTER_KEY` on the server. A virtual key will return
+`403 Forbidden`.
+
+```bash
+curl -sS "${SPEND_API_URL}/management/spend" \
+  -H "Authorization: Bearer ${LITELLM_MASTER_KEY}"
+```
+
+Custom range (ISO 8601 datetimes):
+
+```bash
+curl -sS "${SPEND_API_URL}/management/spend?start_date=2026-07-01T00:00:00&end_date=2026-07-31T23:59:59" \
+  -H "Authorization: Bearer ${LITELLM_MASTER_KEY}"
+```
+
+### 4. Useful flags
+
+These flags are handy when iterating on a failing call:
+
+| Flag | Purpose |
+|------|---------|
+| `-i` | Show response status line and headers alongside the body. |
+| `-v` | Verbose mode — prints the full request/response exchange (DNS, TLS, headers). |
+| `--max-time 10` | Abort the call after 10 s, useful for spotting a hung backend. |
+| `-o body.json` | Write the response body to a file for inspection. |
+| `-w '\nHTTP %{http_code} in %{time_total}s\n'` | Print the HTTP status and total time after the body. |
+
+Example combining `-i` and timing output:
+
+```bash
+curl -sS -i -w '\nHTTP %{http_code} in %{time_total}s\n' \
+  "${SPEND_API_URL}/me/spend/summary?period=month" \
+  -H "Authorization: Bearer ${SPEND_API_KEY}"
+```
+
+### 5. Negative-path checks
+
+It is worth running these once after deployment to confirm auth is
+enforced correctly:
+
+```bash
+# No token -> 401 / 403
+curl -sS -o /dev/null -w '%{http_code}\n' "${SPEND_API_URL}/me/spend/summary"
+
+# Wrong virtual key -> 401 Invalid or expired API key
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  "${SPEND_API_URL}/me/spend/summary" \
+  -H "Authorization: Bearer sk-does-not-exist"
+
+# Virtual key against a management endpoint -> 403 Master key required
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  "${SPEND_API_URL}/management/spend" \
+  -H "Authorization: Bearer ${SPEND_API_KEY}"
+
+# Master key against a user endpoint -> 401 (master key is not a virtual key)
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  "${SPEND_API_URL}/me/spend/summary" \
+  -H "Authorization: Bearer ${LITELLM_MASTER_KEY}"
+```
+
+Expected status codes: `401` for missing/unknown credentials, `403` for
+the wrong credential class on management endpoints. Anything else means
+the dependency or auth wiring has regressed.
 
 ## Authentication
 
@@ -627,6 +790,95 @@ Returns budget configuration for the user.
 - [Architecture Documentation](./docs/architecture.md) - System architecture details
 - [API Contracts](./docs/api-contracts.md) - Backend API specification
 - [User Guide](./docs/user-guide.md) - End-user documentation
+
+## Database Schema Patches (LiteLLM-managed tables)
+
+The backend **only reads** from the LiteLLM PostgreSQL database and never
+modifies its schema. LiteLLM owns the migrations for
+`"LiteLLM_SpendLogs"` and `"LiteLLM_VerificationToken"`, and any
+composite index we add here is not part of LiteLLM's schema.
+
+This section is the single source of truth for the **out-of-band patches
+applied to the LiteLLM database that are not part of LiteLLM's own
+migrations**. If the database is ever recreated from scratch
+(restore-from-snapshot, new RDS instance, restored backup that pre-dates
+these indexes, etc.), these scripts must be re-run.
+
+### Indexes applied
+
+| Index name | Columns | Created | Owner | Purpose | Re-run script |
+|---|---|---|---|---|---|
+| `idx_spend_logs_starttime_apikey_model` | `("startTime", api_key, model)` | pre-2026-07-23 | pre-existing | Speeds up the management spend endpoint (`/management/spend`) which filters by date range and groups by (api_key, day, model) | [backend/sql/management_spend_index.sql](backend/sql/management_spend_index.sql) |
+| `idx_spend_logs_apikey_starttime` | `(api_key, "startTime")` | 2026-07-23 | this repo | Speeds up user-facing summary endpoints (`/me/spend/summary`, `/me/budget`, `/me/spend/by-model`, `/me/spend/by-project`, `/me/spend/daily`) which filter by `api_key` first and then by a date range | [backend/sql/summary_spend_index.sql](backend/sql/summary_spend_index.sql) |
+
+### Why two indexes?
+
+The two endpoints have different predicate shapes, and the **leading
+column of a composite index matters**:
+
+- **User-facing summary endpoints** always filter `WHERE api_key = ?
+  AND "startTime" BETWEEN ? AND ?` — the planner needs an index whose
+  leading column is `api_key`. The single-column `(api_key)` and
+  single-column `("startTime")` indexes that ship with LiteLLM's
+  schema force the planner to pick one or the other, which on a
+  production-sized `LiteLLM_SpendLogs` table results in a sequential
+  scan and ~7 s response times. Adding
+  `idx_spend_logs_apikey_starttime` brings the query down to ~3 ms.
+- **Management spend endpoint** filters by date range and then groups
+  by `(api_key, day, model)`. It needs `("startTime", api_key, model)`
+  as the leading column, which is what
+  `idx_spend_logs_starttime_apikey_model` provides.
+
+The two indexes do not overlap in the plans the planner picks, so
+keeping both is correct.
+
+### Re-creating the database from scratch
+
+If the LiteLLM database is ever recreated, run both scripts in this
+order. Each is idempotent (`IF NOT EXISTS`) and uses
+`CREATE INDEX CONCURRENTLY` so LiteLLM keeps writing to the table
+uninterrupted while the index is built.
+
+```bash
+set -a && source .vscode/.env && source .env && set +a
+
+PGURL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}/litellm"
+# Or: PGURL="${DATABASE_URL}"
+
+# 1. Management endpoint index (pre-existing)
+psql "$PGURL" -f backend/sql/management_spend_index.sql
+
+# 2. User-facing summary index (added 2026-07-23)
+psql "$PGURL" -f backend/sql/summary_spend_index.sql
+
+# 3. Refresh planner statistics so the new indexes are picked immediately
+psql "$PGURL" -c 'ANALYZE "LiteLLM_SpendLogs";'
+```
+
+### Verifying the indexes are in place
+
+```sql
+SELECT indexname, indexdef
+FROM   pg_indexes
+WHERE  tablename = 'LiteLLM_SpendLogs'
+ORDER  BY indexname;
+```
+
+Expected (other LiteLLM-shipped indexes may also appear):
+
+```
+idx_spend_logs_apikey_starttime            (api_key, "startTime")
+idx_spend_logs_starttime_apikey_model      ("startTime", api_key, model)
+LiteLLM_SpendLogs_pkey                     (request_id)
+LiteLLM_SpendLogs_startTime_idx            ("startTime")
+```
+
+### Change log for this section
+
+| Date | Change | Script | Verified by |
+|---|---|---|---|
+| pre-2026-07-23 | `idx_spend_logs_starttime_apikey_model` pre-existing in the prod DB | [backend/sql/management_spend_index.sql](backend/sql/management_spend_index.sql) | pre-existing |
+| 2026-07-23 | `idx_spend_logs_apikey_starttime` added after `/me/spend/summary?period=month` was measured at ~7 s; `EXPLAIN ANALYZE` confirmed a sequential scan and the new index brought the same query to ~3 ms | [backend/sql/summary_spend_index.sql](backend/sql/summary_spend_index.sql) | `EXPLAIN (ANALYZE, BUFFERS)` showing `Bitmap Index Scan on idx_spend_logs_apikey_starttime` |
 
 ## Roadmap
 
